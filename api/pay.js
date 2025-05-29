@@ -37,12 +37,13 @@ export default async function handler(req, res) {
 
   const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
   const path = '/v3/payment/initiate';
+  const phonePeURL = `https://api.phonepe.com${path}`;
   const crypto = await import('crypto');
   const hash = crypto.createHmac('sha256', saltKey).update(base64Payload + path + saltKey).digest('hex');
   const xVerify = `${hash}###${saltIndex}`;
 
   try {
-    const response = await fetch(`https://api.phonepe.com${path}`, {
+    const response = await fetch(phonePeURL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -50,6 +51,9 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({ request: base64Payload })
     });
+
+    const contentType = response.headers.get('content-type');
+    console.log('Response headers:', contentType);
 
     const text = await response.text();
     console.log('Raw PhonePe response:', text);
@@ -78,3 +82,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ success: false, message: err.message });
   }
 }
+

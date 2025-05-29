@@ -77,61 +77,77 @@
   </div>
 
   <script>
-    document.getElementById('bookingForm').addEventListener('submit', async e => {
-      e.preventDefault();
+  document.getElementById('bookingForm').addEventListener('submit', async e => {
+    e.preventDefault();
 
-      const name = document.getElementById('fullName').value.trim();
-      const email = document.getElementById('email').value.trim();
-      const mobile = document.getElementById('mobile').value.trim();
-      const courseValue = document.getElementById('course').value;
+    const name = document.getElementById('fullName').value.trim();
+    const email = document.getElementById('email').value.trim();
+    let mobile = document.getElementById('mobile').value.trim();
 
-      if (!courseValue) {
-        alert('Please select a course.');
-        return;
-      }
+    // Remove all non-digit chars from mobile number
+    mobile = mobile.replace(/\D/g, '');
 
-      // Amount in paise, as PhonePe requires amount in smallest currency unit
-      const fee = Number(courseValue) * 100;
+    const courseValue = document.getElementById('course').value;
 
-      const payload = {
-        merchantTransactionId: 'TXN_' + Date.now(),
-        merchantUserId: 'USER_' + Date.now(),
-        amount: fee,
-        mobileNumber: mobile,
-        redirectUrl: window.location.origin + '/payment-success', // Adjust URLs as needed
-        callbackUrl: window.location.origin + '/payment-callback'
-      };
+    if (!courseValue) {
+      alert('Please select a course.');
+      return;
+    }
 
+    if (mobile.length < 10) {
+      alert('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+
+    // Convert courseValue (string rupees) to amount in paise (string)
+    const feeInRupees = Number(courseValue);
+    if (isNaN(feeInRupees) || feeInRupees <= 0) {
+      alert('Invalid course fee.');
+      return;
+    }
+
+    const fee = (feeInRupees * 100).toString();  // amount in paise as string
+
+    const payload = {
+      merchantTransactionId: 'TXN_' + Date.now(),
+      merchantUserId: 'USER_' + Date.now(),
+      amount: fee,
+      mobileNumber: mobile,
+      redirectUrl: window.location.origin + '/payment-success',
+      callbackUrl: window.location.origin + '/payment-callback'
+    };
+
+    try {
+      const resp = await fetch('/api/pay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const text = await resp.text();
+      console.log('Backend raw response:', text);
+
+      let data;
       try {
-        const resp = await fetch('/api/pay', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        const text = await resp.text();
-        console.log('Backend raw response:', text);
-
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch (e) {
-          console.error('Failed to parse JSON from backend:', e);
-          throw new Error('Invalid response from backend');
-        }
-
-        if (data.success && data.data?.instrumentResponse?.redirectInfo?.url) {
-          // Redirect user to PhonePe payment page
-          window.location.href = data.data.instrumentResponse.redirectInfo.url;
-        } else {
-          throw new Error(data.message || 'Unknown error');
-        }
-      } catch (err) {
-        const box = document.getElementById('alertBox');
-        box.innerHTML = `<div class="alert alert-danger">Payment Error: ${err.message || JSON.stringify(err)}</div>`;
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error('Failed to parse JSON from backend:', e);
+        throw new Error('Invalid response from backend');
       }
-    });
-  </script>
+
+      if (data.success && data.data?.instrumentResponse?.redirectInfo?.url) {
+        // Redirect user to PhonePe payment page
+        window.location.href = data.data.instrumentResponse.redirectInfo.url;
+      } else {
+        throw new Error(data.message || 'Unknown error');
+      }
+    } catch (err) {
+      const box = document.getElementById('alertBox');
+      box.innerHTML = `<div class="alert alert-danger">Payment Error: ${err.message || JSON.stringify(err)}</div>`;
+    }
+  });
+</script>
+
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.1/js/bootstrap.bundle.min.js"></script>
 </body>

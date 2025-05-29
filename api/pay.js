@@ -5,7 +5,7 @@ export default async function handler(req, res) {
 
   let body = req.body;
 
-  // Handle raw JSON parsing if body is empty (sometimes req.body is empty due to middleware config)
+  // Fallback for raw body parsing if body is empty
   if (!body || Object.keys(body).length === 0) {
     try {
       const buffers = [];
@@ -19,9 +19,9 @@ export default async function handler(req, res) {
     }
   }
 
-  const merchantId  = 'SU2505261345381642049693';
-  const saltKey     = '2b98b87c-425f-4258-ace8-900cc99be48f';
-  const saltIndex   = '1';
+  const merchantId  = 'SU2505261345381642049693'; // Your production merchantId
+  const saltKey     = '2b98b87c-425f-4258-ace8-900cc99be48f'; // Production Salt Key
+  const saltIndex   = '1'; // Salt index as given by PhonePe
 
   const payload = {
     merchantId,
@@ -65,13 +65,16 @@ export default async function handler(req, res) {
     console.log('Parsed PhonePe response:', data);
 
     if (!data || !data.success) {
-      return res.status(400).json({ success: false, message: data.message || 'Payment initiation failed' });
+      return res.status(400).json({
+        success: false,
+        message: data.message || `Payment initiation failed. Code: ${data.code || 'Unknown'}`
+      });
     }
 
-    res.status(200).json(data);
+    return res.status(200).json(data);
 
   } catch (err) {
     console.error('Backend error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, message: err.message });
   }
 }

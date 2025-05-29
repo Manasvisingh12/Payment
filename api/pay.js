@@ -1,17 +1,21 @@
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).send('Method not allowed');
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, message: 'Method not allowed' });
+  }
 
   let body = req.body;
+
+  // Handle raw JSON parsing if body is empty (sometimes req.body is empty due to middleware config)
   if (!body || Object.keys(body).length === 0) {
-    const buffers = [];
-    for await (const chunk of req) {
-      buffers.push(chunk);
-    }
-    const rawBody = Buffer.concat(buffers).toString();
     try {
+      const buffers = [];
+      for await (const chunk of req) {
+        buffers.push(chunk);
+      }
+      const rawBody = Buffer.concat(buffers).toString();
       body = JSON.parse(rawBody);
-    } catch {
-      return res.status(400).json({ error: 'Invalid JSON' });
+    } catch (err) {
+      return res.status(400).json({ success: false, message: 'Invalid JSON' });
     }
   }
 
@@ -36,35 +40,38 @@ export default async function handler(req, res) {
   const crypto = await import('crypto');
   const hash = crypto.createHmac('sha256', saltKey).update(base64Payload + path + saltKey).digest('hex');
   const xVerify = `${hash}###${saltIndex}`;
-try {
-  const response = await fetch(`https://api.phonepe.com/apis/hermes${path}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-VERIFY': xVerify
-    },
-    body: JSON.stringify({ request: base64Payload })
-  });
 
-  // Get raw text response from PhonePe API
-  const text = await response.text();
-  console.log('Raw PhonePe response:', text);
-
-  // Try to parse JSON
-  let data;
   try {
-    data = JSON.parse(text);
-  } catch (jsonErr) {
-    console.error('Failed to parse JSON:', jsonErr);
-    return res.status(500).json({ success: false, message: 'Invalid JSON response from PhonePe' });
+    const response = await fetch(`https://api.phonepe.com/apis/hermes${path}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-VERIFY': xVerify
+      },
+      body: JSON.stringify({ request: base64Payload })
+    });
+
+    const text = await response.text();
+    console.log('Raw PhonePe response:', text);
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (jsonErr) {
+      console.error('Failed to parse JSON:', jsonErr);
+      return res.status(500).json({ success: false, message: 'Invalid JSON response from PhonePe' });
+    }
+
+    console.log('Parsed PhonePe response:', data);
+
+    if (!data || !data.success) {
+      return res.status(400).json({ success: false, message: data.message || 'Payment initiation failed' });
+    }
+
+    res.status(200).json(data);
+
+  } catch (err) {
+    console.error('Backend error:', err);
+    res.status(500).json({ success: false, message: err.message });
   }
-
-  // Log parsed data too
-  console.log('Parsed PhonePe response:', data);
-
-  // Send parsed JSON to frontend
-  res.status(200).json(data);
-} catch (err) {
-  console.error('Backend error:', err);
-  res.status(500).json({ success: false, message: err.message });
 }

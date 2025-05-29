@@ -36,20 +36,35 @@ export default async function handler(req, res) {
   const crypto = await import('crypto');
   const hash = crypto.createHmac('sha256', saltKey).update(base64Payload + path + saltKey).digest('hex');
   const xVerify = `${hash}###${saltIndex}`;
+try {
+  const response = await fetch(`https://api.phonepe.com/apis/hermes${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-VERIFY': xVerify
+    },
+    body: JSON.stringify({ request: base64Payload })
+  });
 
+  // Get raw text response from PhonePe API
+  const text = await response.text();
+  console.log('Raw PhonePe response:', text);
+
+  // Try to parse JSON
+  let data;
   try {
-    const response = await fetch(`https://api.phonepe.com/apis/hermes${path}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-VERIFY': xVerify
-      },
-      body: JSON.stringify({ request: base64Payload })
-    });
-
-    const data = await response.json();
-    res.status(200).json(data);
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    data = JSON.parse(text);
+  } catch (jsonErr) {
+    console.error('Failed to parse JSON:', jsonErr);
+    return res.status(500).json({ success: false, message: 'Invalid JSON response from PhonePe' });
   }
+
+  // Log parsed data too
+  console.log('Parsed PhonePe response:', data);
+
+  // Send parsed JSON to frontend
+  res.status(200).json(data);
+} catch (err) {
+  console.error('Backend error:', err);
+  res.status(500).json({ success: false, message: err.message });
 }

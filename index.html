@@ -2,14 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Course Booking &amp; Pay</title>
-
-  <link
-    href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.1/css/bootstrap.min.css"
-    rel="stylesheet"
-  >
- 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+  <title>Course Booking & Pay</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.1/css/bootstrap.min.css" rel="stylesheet">
   <style>
     body { background: #f2f6fc; }
     .card {
@@ -49,12 +43,12 @@
           <form id="bookingForm">
             <div class="mb-3">
               <label for="fullName" class="form-label">Full Name</label>
-              <input type="text" class="form-control" id="fullName" placeholder="" required>
+              <input type="text" class="form-control" id="fullName" required>
             </div>
 
             <div class="mb-3">
               <label for="email" class="form-label">Email Address</label>
-              <input type="email" class="form-control" id="email" placeholder="" required>
+              <input type="email" class="form-control" id="email" required>
             </div>
 
             <div class="mb-3">
@@ -69,81 +63,61 @@
 
             <div class="mb-4">
               <label for="mobile" class="form-label">Mobile Number</label>
-              <input type="tel" class="form-control" id="mobile" placeholder="" required>
+              <input type="tel" class="form-control" id="mobile" required>
             </div>
 
             <div class="d-grid">
-              <button type="submit" class="btn btn-primary">Book &amp; Pay</button>
+              <button type="submit" class="btn btn-primary">Book & Pay</button>
             </div>
           </form>
+          <div id="alertBox" class="mt-3"></div>
         </div>
       </div>
     </div>
   </div>
 
   <script>
-   
-    const merchantId   = 'SU2505261345381642049693';
-    const saltKey      = '2b98b87c-425f-4258-ace8-900cc99be48f';
-    const saltIndex    = '1';
-    const apiEndpoint  = 'https://api.phonepe.com/apis/hermes/pg/v1/pay'; 
-    
-
     document.getElementById('bookingForm').addEventListener('submit', async e => {
       e.preventDefault();
 
+      const name = document.getElementById('fullName').value;
+      const email = document.getElementById('email').value;
+      const mobile = document.getElementById('mobile').value;
+      const fee = Number(document.getElementById('course').value) * 100;
 
-      const name   = document.getElementById('fullName').value.trim();
-      const email  = document.getElementById('email').value.trim();
-      const mobile = document.getElementById('mobile').value.trim();
-      const fee    = Number(document.getElementById('course').value) * 100; // in paise
-
-      
       const payload = {
-        merchantId,
         merchantTransactionId: 'TXN_' + Date.now(),
-        merchantUserId:        'USER_' + Date.now(),
-        amount:                fee,
-        redirectUrl:           window.location.href + '?status=success',
-        redirectMode:          'POST',
-        callbackUrl:           window.location.href + '?status=callback',
-        mobileNumber:          mobile,
-        paymentInstrument:     { type: 'PAY_PAGE' }
+        merchantUserId: 'USER_' + Date.now(),
+        amount: fee,
+        mobileNumber: mobile,
+        redirectUrl: window.location.href + '?status=success',
+        callbackUrl: window.location.href + '?status=callback'
       };
 
-     
-      const jsonStr       = JSON.stringify(payload);
-      const base64Payload = btoa(unescape(encodeURIComponent(jsonStr)));
-      const path          = '/pg/v1/pay'; 
-      const dataToSign    = base64Payload + path + saltKey;
-      const hash          = CryptoJS.HmacSHA256(dataToSign, saltKey).toString();
-      const xVerify       = `${hash}###${saltIndex}`;
-
       try {
-        const resp = await fetch(apiEndpoint, {
-          method:  'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-VERIFY':      xVerify
-          },
-          body: JSON.stringify({ request: base64Payload })
+        const resp = await fetch('/api/pay', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
         });
 
-        const body = await resp.json();
-        if (!resp.ok) throw new Error(body.message || JSON.stringify(body));
+        const data = await resp.json();
 
-        // 4. Redirect to PhonePe checkout
-        const redirectUrl = body.data.instrumentResponse.redirectInfo.url;
-        window.location.href = redirectUrl;
+        if (data.success && data.data?.instrumentResponse?.redirectInfo?.url) {
+          window.location.href = data.data.instrumentResponse.redirectInfo.url;
+        } else {
+          throw new Error(data.message || 'Unknown error');
+        }
       } catch (err) {
-        const alertBox = document.createElement('div');
-        alertBox.className = 'alert alert-danger mt-3';
-        alertBox.textContent = 'Error: ' + err.message;
-        document.querySelector('.card').prepend(alertBox);
-        console.error(err);
+        const box = document.getElementById('alertBox');
+        box.innerHTML = `<div class="alert alert-danger">Payment Error: ${err.message}</div>`;
       }
     });
   </script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.1/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
 
  
   <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.1/js/bootstrap.bundle.min.js"></script>

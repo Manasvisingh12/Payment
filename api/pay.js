@@ -54,8 +54,10 @@ export default async function handler(req, res) {
     paymentInstrument: { type: 'PAY_PAGE' },
   };
 
-  const path = '/v3/payment/initiate';
-  const phonePeURL = `https://api.phonepe.com${path}`;
+ // Use this exact path as per PhonePe docs:
+const path = '/apis/hermes/pg/v1/pay';
+const phonePeURL = `https://api.phonepe.com${path}`;
+
 
   // Base64 encode the JSON payload
   const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');

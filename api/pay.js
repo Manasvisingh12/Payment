@@ -19,7 +19,12 @@ export default async function handler(req, res) {
     }
   }
 
-  const merchantId  = 'SU2505261345381642049693'; // Your production merchantId
+  // Basic validation (optional)
+  if (!body.merchantTransactionId || !body.merchantUserId || !body.amount) {
+    return res.status(400).json({ success: false, message: 'Missing required fields' });
+  }
+
+  const merchantId  = 'SU2505261345381642049693'; // Production merchantId
   const saltKey     = '2b98b87c-425f-4258-ace8-900cc99be48f'; // Production Salt Key
   const saltIndex   = '1'; // Salt index as given by PhonePe
 
@@ -52,14 +57,27 @@ export default async function handler(req, res) {
       body: JSON.stringify({ request: base64Payload })
     });
 
-    // Log response status and headers
+    // Log response status
     console.log('Response status:', response.status);
-    console.log('Response headers:', JSON.stringify([...response.headers]));
+
+    // Log response headers properly
+    const headersObj = {};
+    response.headers.forEach((value, key) => {
+      headersObj[key] = value;
+    });
+    console.log('Response headers:', JSON.stringify(headersObj));
 
     const text = await response.text();
-
-    // Log the raw response text
     console.log('Response text:', text);
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return res.status(500).json({
+        success: false,
+        message: 'Unexpected content-type in response',
+        rawResponse: text
+      });
+    }
 
     let data;
     try {
@@ -84,3 +102,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ success: false, message: err.message });
   }
 }
+

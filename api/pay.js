@@ -36,13 +36,13 @@ export default async function handler(req, res) {
   };
 
   const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
-  const path = '/pg/v1/pay';
+  const path = '/v3/payment/initiate';
   const crypto = await import('crypto');
   const hash = crypto.createHmac('sha256', saltKey).update(base64Payload + path + saltKey).digest('hex');
   const xVerify = `${hash}###${saltIndex}`;
 
   try {
-    const response = await fetch(`https://api.phonepe.com/apis/hermes${path}`, {
+    const response = await fetch(`https://api.phonepe.com${path}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

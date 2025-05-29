@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, message: 'Method not allowed' });
@@ -5,13 +7,11 @@ export default async function handler(req, res) {
 
   let body = req.body;
 
-  // Handle raw body parsing fallback if body is empty or undefined
+  // Fallback raw parsing if needed
   if (!body || Object.keys(body).length === 0) {
     try {
       const buffers = [];
-      for await (const chunk of req) {
-        buffers.push(chunk);
-      }
+      for await (const chunk of req) buffers.push(chunk);
       const rawBody = Buffer.concat(buffers).toString();
       body = JSON.parse(rawBody);
     } catch (err) {
@@ -27,49 +27,56 @@ export default async function handler(req, res) {
     'amount',
     'redirectUrl',
     'callbackUrl',
-    'mobileNumber',
+    // mobileNumber is optional as per docs, so not required here
   ];
-
   for (const field of requiredFields) {
     if (!body[field]) {
       return res.status(400).json({ success: false, message: `Missing required field: ${field}` });
     }
   }
 
-  // Constants from PhonePe dashboard (Use your real merchantId, saltKey, saltIndex)
+  // Constants (Replace with your real values)
   const merchantId = 'SU2505261345381642049693';
   const saltKey = '2b98b87c-425f-4258-ace8-900cc99be48f';
   const saltIndex = '1';
 
-  // Prepare payload
+  // Prepare payload JSON object exactly as required
   const payload = {
     merchantId,
     merchantTransactionId: body.merchantTransactionId,
     merchantUserId: body.merchantUserId,
     amount: body.amount,
     redirectUrl: body.redirectUrl,
-    redirectMode: 'POST', // PhonePe requires either POST or REDIRECT here
+    redirectMode: 'POST',  // 'POST' or 'REDIRECT' as per your flow
     callbackUrl: body.callbackUrl,
-    mobileNumber: body.mobileNumber,
-    paymentInstrument: { type: 'PAY_PAGE' },
+    paymentInstrument: {
+      type: 'PAY_PAGE',
+    },
   };
 
- // Use this exact path as per PhonePe docs:
-const path = '/apis/hermes/pg/v1/pay';
-const phonePeURL = `https://api.phonepe.com${path}`;
+  // Add mobileNumber only if present
+  if (body.mobileNumber) {
+    payload.mobileNumber = body.mobileNumber;
+  }
 
+  // API Endpoint path as per docs (use Production or UAT accordingly)
+  const path = '/pg/v1/pay';  // endpoint common for both environments
+  const baseURL = 'https://api.phonepe.com/apis/hermes'; // production
+  // For UAT use: 'https://api-preprod.phonepe.com/apis/pg-sandbox'
+  const phonePeURL = baseURL + path;
 
-  // Base64 encode the JSON payload
-  const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
+  // Base64 encode the JSON payload string
+  const jsonPayload = JSON.stringify(payload);
+  const base64Payload = Buffer.from(jsonPayload).toString('base64');
 
-  // Generate HMAC SHA256 hash for X-VERIFY header
-  const crypto = await import('crypto');
-  const hash = crypto.createHmac('sha256', saltKey).update(base64Payload + path + saltKey).digest('hex');
+  // Calculate X-VERIFY header:
+  // SHA256(Base64encodedPayload + path + saltKey) + ### + saltIndex
+  const dataToHash = base64Payload + path + saltKey;
+  const hash = crypto.createHash('sha256').update(dataToHash).digest('hex');
   const xVerify = `${hash}###${saltIndex}`;
 
   try {
-    // Call PhonePe API
-    const response = await fetch(phonePeURL, {
+    const fetchResponse = await fetch(phonePeURL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -78,35 +85,13 @@ const phonePeURL = `https://api.phonepe.com${path}`;
       body: JSON.stringify({ request: base64Payload }),
     });
 
-    // Log response status and headers for debugging
-    console.log('PhonePe Response Status:', response.status);
-    console.log('PhonePe Response Headers:', JSON.stringify([...response.headers]));
+    const responseData = await fetchResponse.json();
 
-    const text = await response.text();
-    console.log('PhonePe Raw Response Text:', text);
-
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch (jsonErr) {
-      console.error('Failed to parse PhonePe response JSON:', jsonErr);
-      return res.status(500).json({ success: false, message: 'Invalid JSON response from PhonePe', rawResponse: text });
-    }
-
-    if (!data || !data.success) {
-      console.error('PhonePe API responded with failure:', data);
-      return res.status(400).json({
-        success: false,
-        message: data.message || `Payment initiation failed. Code: ${data.code || 'Unknown'}`,
-        rawResponse: data,
-      });
-    }
-
-    // Success — return PhonePe response to frontend
-    return res.status(200).json(data);
-  } catch (err) {
-    console.error('Backend error while calling PhonePe:', err);
-    return res.status(500).json({ success: false, message: 'Internal Server Error', error: err.message });
+    // Return the response as is to frontend or caller
+    return res.status(fetchResponse.status).json(responseData);
+  } catch (error) {
+    console.error('PhonePe API call error:', error);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 }
 

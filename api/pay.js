@@ -1,19 +1,33 @@
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).send('Method not allowed');
 
+  let body = req.body;
+  if (!body || Object.keys(body).length === 0) {
+    const buffers = [];
+    for await (const chunk of req) {
+      buffers.push(chunk);
+    }
+    const rawBody = Buffer.concat(buffers).toString();
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return res.status(400).json({ error: 'Invalid JSON' });
+    }
+  }
+
   const merchantId  = 'SU2505261345381642049693';
   const saltKey     = '2b98b87c-425f-4258-ace8-900cc99be48f';
   const saltIndex   = '1';
 
   const payload = {
     merchantId,
-    merchantTransactionId: req.body.merchantTransactionId,
-    merchantUserId: req.body.merchantUserId,
-    amount: req.body.amount,
-    redirectUrl: req.body.redirectUrl,
+    merchantTransactionId: body.merchantTransactionId,
+    merchantUserId: body.merchantUserId,
+    amount: body.amount,
+    redirectUrl: body.redirectUrl,
     redirectMode: 'POST',
-    callbackUrl: req.body.callbackUrl,
-    mobileNumber: req.body.mobileNumber,
+    callbackUrl: body.callbackUrl,
+    mobileNumber: body.mobileNumber,
     paymentInstrument: { type: 'PAY_PAGE' }
   };
 

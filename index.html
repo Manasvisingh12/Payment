@@ -77,43 +77,53 @@
   </div>
 
   <script>
-    document.getElementById('bookingForm').addEventListener('submit', async e => {
-      e.preventDefault();
+  document.getElementById('bookingForm').addEventListener('submit', async e => {
+    e.preventDefault();
 
-      const name = document.getElementById('fullName').value;
-      const email = document.getElementById('email').value;
-      const mobile = document.getElementById('mobile').value;
-      const fee = Number(document.getElementById('course').value) * 100;
+    const name = document.getElementById('fullName').value;
+    const email = document.getElementById('email').value;
+    const mobile = document.getElementById('mobile').value;
+    const fee = Number(document.getElementById('course').value) * 100;
 
-      const payload = {
-        merchantTransactionId: 'TXN_' + Date.now(),
-        merchantUserId: 'USER_' + Date.now(),
-        amount: fee,
-        mobileNumber: mobile,
-        redirectUrl: window.location.href + '?status=success',
-        callbackUrl: window.location.href + '?status=callback'
-      };
+    const payload = {
+      merchantTransactionId: 'TXN_' + Date.now(),
+      merchantUserId: 'USER_' + Date.now(),
+      amount: fee,
+      mobileNumber: mobile,
+      redirectUrl: window.location.href + '?status=success',
+      callbackUrl: window.location.href + '?status=callback'
+    };
 
+    try {
+      const resp = await fetch('/api/pay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const text = await resp.text(); // get raw response text
+      console.log('Backend raw response:', text);
+
+      let data;
       try {
-        const resp = await fetch('/api/pay', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await resp.json();
-
-        if (data.success && data.data?.instrumentResponse?.redirectInfo?.url) {
-          window.location.href = data.data.instrumentResponse.redirectInfo.url;
-        } else {
-          throw new Error(data.message || 'Unknown error');
-        }
-      } catch (err) {
-        const box = document.getElementById('alertBox');
-        box.innerHTML = `<div class="alert alert-danger">Payment Error: ${err.message}</div>`;
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error('Failed to parse JSON from backend:', e);
+        throw new Error('Invalid response from backend');
       }
-    });
-  </script>
+
+      if (data.success && data.data?.instrumentResponse?.redirectInfo?.url) {
+        window.location.href = data.data.instrumentResponse.redirectInfo.url;
+      } else {
+        throw new Error(data.message || 'Unknown error');
+      }
+    } catch (err) {
+      const box = document.getElementById('alertBox');
+      box.innerHTML = `<div class="alert alert-danger">Payment Error: ${err.message || JSON.stringify(err)}</div>`;
+    }
+  });
+</script>
+
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.1/js/bootstrap.bundle.min.js"></script>
 </body>

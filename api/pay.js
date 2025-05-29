@@ -7,7 +7,7 @@ export default async function handler(req, res) {
 
   let body = req.body;
 
-  // Fallback raw parsing if needed
+  // Fallback raw parsing if body is empty (rare case)
   if (!body || Object.keys(body).length === 0) {
     try {
       const buffers = [];
@@ -20,14 +20,13 @@ export default async function handler(req, res) {
     }
   }
 
-  // Validate required fields
+  // Required fields validation
   const requiredFields = [
     'merchantTransactionId',
     'merchantUserId',
     'amount',
     'redirectUrl',
     'callbackUrl',
-    // mobileNumber is optional as per docs, so not required here
   ];
   for (const field of requiredFields) {
     if (!body[field]) {
@@ -35,42 +34,40 @@ export default async function handler(req, res) {
     }
   }
 
-  // Constants (Replace with your real values)
+  // Your PhonePe credentials
   const merchantId = 'SU2505261345381642049693';
   const saltKey = '2b98b87c-425f-4258-ace8-900cc99be48f';
   const saltIndex = '1';
 
-  // Prepare payload JSON object exactly as required
+  // API endpoint details
+  const path = '/pg/v1/pay';
+  const baseURL = 'https://api.phonepe.com/apis/hermes'; // Use UAT base URL for testing:
+  // const baseURL = 'https://api-preprod.phonepe.com/apis/pg-sandbox';
+  const phonePeURL = baseURL + path;
+
+  // Build payload JSON
   const payload = {
     merchantId,
     merchantTransactionId: body.merchantTransactionId,
     merchantUserId: body.merchantUserId,
     amount: body.amount,
     redirectUrl: body.redirectUrl,
-    redirectMode: 'POST',  // 'POST' or 'REDIRECT' as per your flow
+    redirectMode: 'POST',
     callbackUrl: body.callbackUrl,
     paymentInstrument: {
       type: 'PAY_PAGE',
     },
   };
 
-  // Add mobileNumber only if present
   if (body.mobileNumber) {
     payload.mobileNumber = body.mobileNumber;
   }
 
-  // API Endpoint path as per docs (use Production or UAT accordingly)
-  const path = '/pg/v1/pay';  // endpoint common for both environments
-  const baseURL = 'https://api.phonepe.com/apis/hermes'; // production
-  // For UAT use: 'https://api-preprod.phonepe.com/apis/pg-sandbox'
-  const phonePeURL = baseURL + path;
-
-  // Base64 encode the JSON payload string
+  // Base64 encode the payload JSON string
   const jsonPayload = JSON.stringify(payload);
   const base64Payload = Buffer.from(jsonPayload).toString('base64');
 
-  // Calculate X-VERIFY header:
-  // SHA256(Base64encodedPayload + path + saltKey) + ### + saltIndex
+  // Create X-VERIFY header hash as SHA256(base64Payload + path + saltKey)
   const dataToHash = base64Payload + path + saltKey;
   const hash = crypto.createHash('sha256').update(dataToHash).digest('hex');
   const xVerify = `${hash}###${saltIndex}`;
@@ -87,7 +84,6 @@ export default async function handler(req, res) {
 
     const responseData = await fetchResponse.json();
 
-    // Return the response as is to frontend or caller
     return res.status(fetchResponse.status).json(responseData);
   } catch (error) {
     console.error('PhonePe API call error:', error);

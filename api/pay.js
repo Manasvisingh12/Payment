@@ -7,7 +7,6 @@ export default async function handler(req, res) {
 
   let body = req.body;
 
-  // Fallback raw parsing if body is empty (rare case)
   if (!body || Object.keys(body).length === 0) {
     try {
       const buffers = [];
@@ -20,7 +19,6 @@ export default async function handler(req, res) {
     }
   }
 
-  // Required fields validation
   const requiredFields = [
     'merchantTransactionId',
     'merchantUserId',
@@ -34,23 +32,24 @@ export default async function handler(req, res) {
     }
   }
 
-  // Your PhonePe credentials
+  // PhonePe production credentials
   const merchantId = 'SU2505261345381642049693';
   const saltKey = '2b98b87c-425f-4258-ace8-900cc99be48f';
   const saltIndex = '1';
 
-  // API endpoint details
+  // Production API details
+  const baseURL = 'https://api.phonepe.com/apis/hermes';
   const path = '/pg/v1/pay';
-  const baseURL = 'https://api.phonepe.com/apis/hermes'; // Use UAT base URL for testing:
-  // const baseURL = 'https://api-preprod.phonepe.com/apis/pg-sandbox';
   const phonePeURL = baseURL + path;
 
-  // Build payload JSON
+  // Convert amount rupees to paise
+  const amountInPaise = Math.round(body.amount * 100);
+
   const payload = {
     merchantId,
     merchantTransactionId: body.merchantTransactionId,
     merchantUserId: body.merchantUserId,
-    amount: body.amount,
+    amount: amountInPaise,
     redirectUrl: body.redirectUrl,
     redirectMode: 'POST',
     callbackUrl: body.callbackUrl,
@@ -63,11 +62,9 @@ export default async function handler(req, res) {
     payload.mobileNumber = body.mobileNumber;
   }
 
-  // Base64 encode the payload JSON string
   const jsonPayload = JSON.stringify(payload);
   const base64Payload = Buffer.from(jsonPayload).toString('base64');
 
-  // Create X-VERIFY header hash as SHA256(base64Payload + path + saltKey)
   const dataToHash = base64Payload + path + saltKey;
   const hash = crypto.createHash('sha256').update(dataToHash).digest('hex');
   const xVerify = `${hash}###${saltIndex}`;
@@ -84,10 +81,13 @@ export default async function handler(req, res) {
 
     const responseData = await fetchResponse.json();
 
+    console.log('PhonePe API response:', responseData);
+
     return res.status(fetchResponse.status).json(responseData);
   } catch (error) {
     console.error('PhonePe API call error:', error);
     return res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 }
+
 

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Course Booking & Pay</title>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.1/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.1/css/bootstrap.min.css" rel="stylesheet" />
   <style>
     body { background: #f2f6fc; }
     .card {
@@ -43,12 +43,12 @@
           <form id="bookingForm">
             <div class="mb-3">
               <label for="fullName" class="form-label">Full Name</label>
-              <input type="text" class="form-control" id="fullName" required>
+              <input type="text" class="form-control" id="fullName" required />
             </div>
 
             <div class="mb-3">
               <label for="email" class="form-label">Email Address</label>
-              <input type="email" class="form-control" id="email" required>
+              <input type="email" class="form-control" id="email" required />
             </div>
 
             <div class="mb-3">
@@ -63,7 +63,7 @@
 
             <div class="mb-4">
               <label for="mobile" class="form-label">Mobile Number</label>
-              <input type="tel" class="form-control" id="mobile" required>
+              <input type="tel" class="form-control" id="mobile" required />
             </div>
 
             <div class="d-grid">
@@ -77,59 +77,62 @@
   </div>
 
   <script>
-  document.getElementById('bookingForm').addEventListener('submit', async e => {
-    e.preventDefault();
+    document.getElementById('bookingForm').addEventListener('submit', async e => {
+      e.preventDefault();
 
-    const name = document.getElementById('fullName').value;
-    const email = document.getElementById('email').value;
-    const mobile = document.getElementById('mobile').value;
-    const fee = Number(document.getElementById('course').value) * 100;
+      const name = document.getElementById('fullName').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const mobile = document.getElementById('mobile').value.trim();
+      const courseValue = document.getElementById('course').value;
 
-    const payload = {
-      merchantTransactionId: 'TXN_' + Date.now(),
-      merchantUserId: 'USER_' + Date.now(),
-      amount: fee,
-      mobileNumber: mobile,
-      redirectUrl: window.location.href + '?status=success',
-      callbackUrl: window.location.href + '?status=callback'
-    };
+      if (!courseValue) {
+        alert('Please select a course.');
+        return;
+      }
 
-    try {
-      const resp = await fetch('/api/pay', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      // Amount in paise, as PhonePe requires amount in smallest currency unit
+      const fee = Number(courseValue) * 100;
 
-      const text = await resp.text(); // get raw response text
-      console.log('Backend raw response:', text);
+      const payload = {
+        merchantTransactionId: 'TXN_' + Date.now(),
+        merchantUserId: 'USER_' + Date.now(),
+        amount: fee,
+        mobileNumber: mobile,
+        redirectUrl: window.location.origin + '/payment-success', // Adjust URLs as needed
+        callbackUrl: window.location.origin + '/payment-callback'
+      };
 
-      let data;
       try {
-        data = JSON.parse(text);
-      } catch (e) {
-        console.error('Failed to parse JSON from backend:', e);
-        throw new Error('Invalid response from backend');
+        const resp = await fetch('/api/pay', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const text = await resp.text();
+        console.log('Backend raw response:', text);
+
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          console.error('Failed to parse JSON from backend:', e);
+          throw new Error('Invalid response from backend');
+        }
+
+        if (data.success && data.data?.instrumentResponse?.redirectInfo?.url) {
+          // Redirect user to PhonePe payment page
+          window.location.href = data.data.instrumentResponse.redirectInfo.url;
+        } else {
+          throw new Error(data.message || 'Unknown error');
+        }
+      } catch (err) {
+        const box = document.getElementById('alertBox');
+        box.innerHTML = `<div class="alert alert-danger">Payment Error: ${err.message || JSON.stringify(err)}</div>`;
       }
+    });
+  </script>
 
-      if (data.success && data.data?.instrumentResponse?.redirectInfo?.url) {
-        window.location.href = data.data.instrumentResponse.redirectInfo.url;
-      } else {
-        throw new Error(data.message || 'Unknown error');
-      }
-    } catch (err) {
-      const box = document.getElementById('alertBox');
-      box.innerHTML = `<div class="alert alert-danger">Payment Error: ${err.message || JSON.stringify(err)}</div>`;
-    }
-  });
-</script>
-
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.1/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
-
- 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.1/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

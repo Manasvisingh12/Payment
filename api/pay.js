@@ -5,7 +5,6 @@ export default async function handler(req, res) {
 
   let body = req.body;
 
-  // Fallback for raw body parsing if body is empty
   if (!body || Object.keys(body).length === 0) {
     try {
       const buffers = [];
@@ -19,14 +18,9 @@ export default async function handler(req, res) {
     }
   }
 
-  // Basic validation (optional)
-  if (!body.merchantTransactionId || !body.merchantUserId || !body.amount) {
-    return res.status(400).json({ success: false, message: 'Missing required fields' });
-  }
-
-  const merchantId  = 'SU2505261345381642049693'; // Production merchantId
-  const saltKey     = '2b98b87c-425f-4258-ace8-900cc99be48f'; // Production Salt Key
-  const saltIndex   = '1'; // Salt index as given by PhonePe
+  const merchantId  = 'SU2505261345381642049693';
+  const saltKey     = '2b98b87c-425f-4258-ace8-900cc99be48f';
+  const saltIndex   = '1';
 
   const payload = {
     merchantId,
@@ -40,9 +34,9 @@ export default async function handler(req, res) {
     paymentInstrument: { type: 'PAY_PAGE' }
   };
 
-  const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
-  const path = '/v3/payment/initiate';
+  const path = '/apis/hermes/pg/v1/pay'; // Updated path here
   const phonePeURL = `https://api.phonepe.com${path}`;
+  const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
   const crypto = await import('crypto');
   const hash = crypto.createHmac('sha256', saltKey).update(base64Payload + path + saltKey).digest('hex');
   const xVerify = `${hash}###${saltIndex}`;
@@ -57,33 +51,11 @@ export default async function handler(req, res) {
       body: JSON.stringify({ request: base64Payload })
     });
 
-    // Log response status
-    console.log('Response status:', response.status);
-
-    // Log response headers properly
-    const headersObj = {};
-    response.headers.forEach((value, key) => {
-      headersObj[key] = value;
-    });
-    console.log('Response headers:', JSON.stringify(headersObj));
-
     const text = await response.text();
-    console.log('Response text:', text);
-
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      return res.status(500).json({
-        success: false,
-        message: 'Unexpected content-type in response',
-        rawResponse: text
-      });
-    }
-
     let data;
     try {
       data = JSON.parse(text);
     } catch (jsonErr) {
-      console.error('Failed to parse JSON:', jsonErr);
       return res.status(500).json({ success: false, message: 'Invalid JSON response from PhonePe', rawResponse: text });
     }
 
@@ -98,7 +70,6 @@ export default async function handler(req, res) {
     return res.status(200).json(data);
 
   } catch (err) {
-    console.error('Backend error:', err);
     return res.status(500).json({ success: false, message: err.message });
   }
 }
